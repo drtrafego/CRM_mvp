@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { StackProvider } from "@stackframe/stack";
 import { stackServerApp } from "@/stack";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -33,6 +34,7 @@ export default function RootLayout({
         <StackProvider app={stackServerApp}>
           <TooltipProvider>
             {children}
+            <SpeedInsights />
           </TooltipProvider>
         </StackProvider>
       </body>

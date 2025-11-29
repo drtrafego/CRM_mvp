@@ -13,7 +13,12 @@ export default async function CRMPage() {
 
   return (
     <div className="h-[calc(100vh-100px)]">
-      <CrmView initialLeads={leads} columns={columns} companyName={settings?.companyName} />
+      <CrmView 
+        initialLeads={leads} 
+        columns={columns} 
+        companyName={settings?.companyName} 
+        initialViewMode={settings?.viewMode || 'kanban'}
+      />
     </div>
   );
 }

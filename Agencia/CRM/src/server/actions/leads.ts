@@ -5,11 +5,17 @@ import { leads, columns } from "@/server/db/schema";
 import { eq, asc, desc, and, ne, lt, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-// Mock org ID for now
-const MOCK_ORG_ID = "org_demo_123";
+import { stackServerApp } from "@/stack";
+
+async function getOrgId() {
+  const user = await stackServerApp.getUser();
+  // Use the user's selected team (if any), or their own personal ID
+  return user?.selectedTeam?.id || user?.id || "org_demo_123";
+}
+
 
 export async function getColumns() {
-  const orgId = MOCK_ORG_ID;
+  const orgId = await getOrgId();
   
   // First, fetch all existing columns
   let existing = await db.query.columns.findMany({
@@ -123,7 +129,7 @@ export async function deleteLead(id: string) {
 export async function getLeads() {
   // In real app: const user = await stackServerApp.getUser();
   // const orgId = user.selectedTeam?.id || user.id;
-  const orgId = MOCK_ORG_ID;
+  const orgId = await getOrgId();
   
   return await db.query.leads.findMany({
     where: eq(leads.organizationId, orgId),
@@ -152,7 +158,7 @@ export async function createLead(formData: FormData) {
   const notes = formData.get("notes") as string;
   const valueStr = formData.get("value") as string;
   const value = valueStr ? valueStr : null;
-  const orgId = MOCK_ORG_ID;
+  const orgId = await getOrgId();
 
   // Get the first column to add the lead to
   const firstColumn = await db.query.columns.findFirst({
@@ -181,7 +187,7 @@ export async function createLead(formData: FormData) {
 }
 
 export async function createColumn(title: string) {
-    const orgId = MOCK_ORG_ID;
+    const orgId = await getOrgId();
     const existingColumns = await getColumns();
     
     await db.insert(columns).values({
@@ -201,7 +207,7 @@ export async function updateColumn(id: string, title: string) {
 }
 
 export async function deleteColumn(id: string) {
-    const orgId = MOCK_ORG_ID;
+    const orgId = await getOrgId();
     
     // Get the column being deleted to know its order
     const columnToDelete = await db.query.columns.findFirst({

@@ -1,12 +1,9 @@
-'use client';
-
-import { SortableContext } from "@dnd-kit/sortable";
+'use client';import { SortableContext } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { LeadCard } from "./lead-card";
 import { Lead } from "@/server/db/schema";
 import { useMemo, useState } from "react";
-import { updateColumn, deleteColumn } from "@/server/actions/leads";
-import { Button } from "@/components/ui/button";
+import { updateColumn, deleteColumn } from "@/server/actions/leads";import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Check, X, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";

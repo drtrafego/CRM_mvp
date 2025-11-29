@@ -31,6 +31,8 @@ export const settings = pgTable("settings", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: text("organization_id").notNull().unique(),
   companyName: text("company_name"),
+  email: text("email"), // Archive user email
+  viewMode: text("view_mode").default('kanban'), // Persist view preference
 });
 
 export type Lead = typeof leads.$inferSelect;

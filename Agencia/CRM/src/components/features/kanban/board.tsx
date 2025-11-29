@@ -58,28 +58,6 @@ export function Board({ initialLeads, columns, onLeadsChange }: BoardProps) {
     setLocalLeads(initialLeads);
   }, [initialLeads]);
 
-  const updateLeads = (newLeads: Lead[] | ((prev: Lead[]) => Lead[])) => {
-      if (typeof newLeads === 'function') {
-          setLocalLeads(prev => {
-              const updated = newLeads(prev);
-              // Schedule side effect to avoid "update while rendering" error
-              setTimeout(() => {
-                  startTransition(() => {
-                    onLeadsChange?.(updated);
-                  });
-              }, 0);
-              return updated;
-          });
-      } else {
-          setLocalLeads(newLeads);
-          setTimeout(() => {
-            startTransition(() => {
-                onLeadsChange?.(newLeads);
-            });
-          }, 0);
-      }
-  };
-
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -120,36 +98,41 @@ export function Board({ initialLeads, columns, onLeadsChange }: BoardProps) {
     if (!activeColumn || !overColumn || activeColumn === overColumn) return;
 
     // Moving between columns - update state immediately for visual feedback
-    updateLeads((prev) => {
-        const activeItems = prev.filter(l => l.columnId === activeColumn);
-        const overItems = prev.filter(l => l.columnId === overColumn);
-        
-        const activeIndex = activeItems.findIndex(l => l.id === active.id);
-        // const overIndex = overItems.findIndex(l => l.id === overId);
+    // Calculate new state based on current 'leads'
+    const prev = leads;
+    const activeItems = prev.filter(l => l.columnId === activeColumn);
+    const overItems = prev.filter(l => l.columnId === overColumn);
+    
+    // const activeIndex = activeItems.findIndex(l => l.id === active.id);
+    
+    let newIndex;
+    if (overItems.some(l => l.id === overId)) {
+        newIndex = overItems.findIndex(l => l.id === overId);
+        const isBelowOverItem =
+          over &&
+          active.rect.current.translated &&
+          active.rect.current.translated.top >
+            over.rect.top + over.rect.height;
+  
+        const modifier = isBelowOverItem ? 1 : 0;
+  
+        newIndex = newIndex >= 0 ? newIndex + modifier : overItems.length + 1;
+    } else {
+        newIndex = overItems.length + 1;
+    }
 
-        let newIndex;
-        if (overItems.some(l => l.id === overId)) {
-            newIndex = overItems.findIndex(l => l.id === overId);
-            const isBelowOverItem =
-              over &&
-              active.rect.current.translated &&
-              active.rect.current.translated.top >
-                over.rect.top + over.rect.height;
-      
-            const modifier = isBelowOverItem ? 1 : 0;
-      
-            newIndex = newIndex >= 0 ? newIndex + modifier : overItems.length + 1;
-        } else {
-            newIndex = overItems.length + 1;
+    const newLeads = prev.map(l => {
+        if (l.id === active.id) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return { ...l, columnId: overColumn as any, position: newIndex };
         }
+        return l;
+    });
 
-        return prev.map(l => {
-            if (l.id === active.id) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                return { ...l, columnId: overColumn as any, position: newIndex };
-            }
-            return l;
-        });
+    setLocalLeads(newLeads);
+    // Trigger parent update in transition
+    startTransition(() => {
+        onLeadsChange?.(newLeads);
     });
   }
 
@@ -185,10 +168,11 @@ export function Board({ initialLeads, columns, onLeadsChange }: BoardProps) {
     if (activeColumn === overColumn && activeIndex !== overIndex) {
          // Reorder in same column
          const reordered = arrayMove(leads, leads.indexOf(leads.find(l => l.id === activeId)!), leads.indexOf(leads.find(l => l.id === overId)!));
-         updateLeads(reordered);
-         // Call server action to update position
+         
+         setLocalLeads(reordered);
          startTransition(() => {
-             updateLeadStatus(activeId, activeColumn, newIndex);
+            onLeadsChange?.(reordered);
+            updateLeadStatus(activeId, activeColumn, newIndex);
          });
     } else if (activeColumn !== overColumn) {
         // Moved to different column

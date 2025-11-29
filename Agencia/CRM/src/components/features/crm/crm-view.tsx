@@ -18,24 +18,27 @@ import { cn } from "@/lib/utils";
 import { UserButton } from "@stackframe/stack";
 import { CompanyOnboarding } from "./company-onboarding";
 
+import { updateViewMode } from "@/server/actions/settings";
+
 interface CrmViewProps {
   initialLeads: Lead[];
   columns: DbColumn[];
   companyName?: string | null;
+  initialViewMode?: string | null;
 }
 
-export function CrmView({ initialLeads, columns, companyName }: CrmViewProps) {
+export function CrmView({ initialLeads, columns, companyName, initialViewMode }: CrmViewProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   
-  const initialView = searchParams.get("view") === "list" ? "list" : "board";
+  const initialView = (searchParams.get("view") as "board" | "list") || (initialViewMode as "board" | "list") || "board";
   const [view, setView] = useState<"board" | "list">(initialView);
 
   useEffect(() => {
     const viewParam = searchParams.get("view");
     if (viewParam === "list" && view !== "list") setView("list");
-    if ((viewParam === "board" || !viewParam) && view !== "board") setView("board");
+    if (viewParam === "board" && view !== "board") setView("board");
   }, [searchParams, view]);
 
   const handleViewChange = (newView: "board" | "list") => {
@@ -43,6 +46,7 @@ export function CrmView({ initialLeads, columns, companyName }: CrmViewProps) {
       const params = new URLSearchParams(searchParams);
       params.set("view", newView);
       router.replace(`${pathname}?${params.toString()}`);
+      updateViewMode(newView);
   };
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>({

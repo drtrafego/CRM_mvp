@@ -205,14 +205,14 @@ export async function deleteColumn(id: string) {
 export async function updateLead(id: string, data: Partial<typeof leads.$inferInsert>) {
     // Whitelist allowed fields to prevent accidental overwrites of critical data
     // like columnId, position, organizationId, etc.
+    // Removed 'status' from whitelist to prevent any accidental status changes during edit
     const allowedFields: (keyof typeof leads.$inferInsert)[] = [
         'name', 
         'company', 
         'email', 
         'whatsapp', 
         'notes', 
-        'value', 
-        'status'
+        'value'
     ];
     
     const updatePayload: Partial<typeof leads.$inferInsert> = {};
@@ -234,6 +234,8 @@ export async function updateLead(id: string, data: Partial<typeof leads.$inferIn
 
     // If nothing to update, return early
     if (Object.keys(updatePayload).length === 0) return;
+
+    console.log(`Updating lead ${id} with payload:`, updatePayload);
 
     await db.update(leads)
         .set(updatePayload)

@@ -43,7 +43,7 @@ export function Column({ id, title, leads, isOverlay }: ColumnProps) {
         type: "Column",
         columnId: id,
     },
-    disabled: isOverlay
+    disabled: !!isOverlay
   });
 
   const style = {
@@ -52,14 +52,14 @@ export function Column({ id, title, leads, isOverlay }: ColumnProps) {
   };
 
   // Droppable hook for leads within the column
-  const { setNodeRef: setDroppableRef } = useDroppable({
-    id: id,
-    data: {
-        type: "Column",
-        columnId: id,
-    },
-    disabled: isOverlay
-  });
+    const { setNodeRef: setDroppableRef } = useDroppable({
+      id: id,
+      data: {
+          type: "Column",
+          columnId: id,
+      },
+      disabled: !!isOverlay
+    });
 
   const leadIds = useMemo(() => leads.map((lead) => lead.id), [leads]);
 
@@ -102,7 +102,10 @@ export function Column({ id, title, leads, isOverlay }: ColumnProps) {
       <div 
         {...attributes} 
         {...listeners}
-        className="p-3 pb-2 flex items-center justify-between group cursor-grab active:cursor-grabbing"
+        className={cn(
+            "p-3 pb-2 flex items-center justify-between group cursor-grab active:cursor-grabbing",
+            isEditing && "cursor-default"
+        )}
       >
         {isEditing ? (
              <div 

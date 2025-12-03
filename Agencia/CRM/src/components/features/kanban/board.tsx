@@ -72,9 +72,9 @@ export function Board({ initialLeads, columns: initialColumns, onLeadsChange }: 
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-        activationConstraint: {
-            distance: 5, // Avoid accidental drags
-        },
+      activationConstraint: {
+        distance: 5, // Avoid accidental drags
+      },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,

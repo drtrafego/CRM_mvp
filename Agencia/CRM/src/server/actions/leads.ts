@@ -248,6 +248,15 @@ export async function updateLeadContent(id: string, data: Partial<typeof leads.$
         return;
     }
 
+    // Explicitly force preservation of columnId and position
+    // This prevents any DB default behavior or trigger from moving the lead
+    // @ts-ignore - forcing these fields into the update payload
+    updatePayload.columnId = existingLead.columnId;
+    // @ts-ignore - forcing these fields into the update payload
+    updatePayload.position = existingLead.position;
+
+    console.log(`Final update payload for lead ${id}:`, updatePayload);
+
     await db.update(leads)
         .set(updatePayload)
         .where(eq(leads.id, id));

@@ -20,7 +20,7 @@ import {
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates, arrayMove, SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import { useState, useTransition, useEffect, useMemo } from "react";
-import { Column } from "./column";
+import { Column, ColumnDragOverlay } from "./column";
 import { LeadCard } from "./lead-card";
 import { Lead, Column as DbColumn } from "@/server/db/schema";
 import { updateLeadStatus, updateColumnOrder } from "@/server/actions/leads";
@@ -103,6 +103,10 @@ export function Board({ initialLeads, columns: initialColumns, onLeadsChange }: 
 
   function handleDragOver(event: DragOverEvent) {
     const { active, over } = event;
+    
+    // Ignore if dragging a column
+    if (active.data.current?.type === "Column") return;
+
     const overId = over?.id;
 
     if (!overId || active.id === overId) return;
@@ -299,11 +303,10 @@ export function Board({ initialLeads, columns: initialColumns, onLeadsChange }: 
         <DragOverlay dropAnimation={dropAnimation}>
           {activeLead ? <LeadCard lead={activeLead} /> : null}
           {activeColumn ? (
-            <Column 
+            <ColumnDragOverlay 
                 id={activeColumn.id} 
                 title={activeColumn.title} 
                 leads={leads.filter(l => l.columnId === activeColumn.id)} 
-                isOverlay
             />
           ) : null}
         </DragOverlay>,

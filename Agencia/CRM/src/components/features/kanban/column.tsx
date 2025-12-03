@@ -40,7 +40,7 @@ export function Column({ id, title, leads }: ColumnProps) {
     id: id,
     data: {
         type: "Column",
-        columnId: id,
+        column: { id, title },
     },
   });
 
@@ -218,7 +218,7 @@ function ColumnVisual({
     
           {/* Droppable Area */}
           <div className="flex-1 p-2 overflow-hidden">
-             <div className="h-full pr-3 overflow-y-auto custom-scrollbar">
+             <div className="h-full pr-3 overflow-y-auto custom-scrollbar min-h-[150px]">
                 {/* Only enable SortableContext if NOT an overlay to avoid ID collisions */}
                 {!isOverlay ? (
                     <SortableContext items={leadIds}>

@@ -219,7 +219,16 @@ export function Board({ columns: initialColumns, initialLeads, onLeadsChange }: 
     }
   }
   
-  // ... rest of component ...
+  const getLeadsByColumn = (columnId: string) => {
+    return leads.filter((lead) => lead.columnId === columnId);
+  };
+
+  async function handleCreateColumn() {
+    if (!newColumnName.trim()) return;
+    await createColumn(newColumnName);
+    setNewColumnName("");
+    setIsCreateColumnOpen(false);
+  }
 
   return (
     <DndContext

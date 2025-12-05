@@ -136,9 +136,12 @@ export function Board({ columns: initialColumns, initialLeads }: BoardProps) {
     }
   }
 
+  const [lastError, setLastError] = useState<string | null>(null);
+
   function onDragEnd(event: DragEndEvent) {
     setActiveColumn(null);
     setActiveLead(null);
+    setLastError(null);
 
     const { active, over } = event;
     if (!over) return;
@@ -161,7 +164,7 @@ export function Board({ columns: initialColumns, initialLeads }: BoardProps) {
           updateColumnOrder(newOrder.map(c => c.id))
             .catch(err => {
                 console.error("Failed to update column order:", err);
-                // Optional: Revert changes or show toast
+                setLastError(`Erro ao salvar ordem das colunas: ${err.message}`);
                 ignoreExternalUpdatesRef.current = false;
             });
 
@@ -180,7 +183,6 @@ export function Board({ columns: initialColumns, initialLeads }: BoardProps) {
         const newOrderedLeads = arrayMove(leads, activeIndex, overIndex);
         const movedLead = newOrderedLeads[overIndex];
         
-        // Calculate new position within the specific column
         const columnLeads = newOrderedLeads.filter(l => l.columnId === movedLead.columnId);
         const newPosition = columnLeads.findIndex(l => l.id === movedLead.id);
         
@@ -190,6 +192,7 @@ export function Board({ columns: initialColumns, initialLeads }: BoardProps) {
         updateLeadStatus(movedLead.id, movedLead.columnId!, newPosition)
              .catch(err => {
                 console.error("Failed to update lead status:", err);
+                setLastError(`Erro ao salvar status do lead: ${err.message}`);
                 ignoreExternalUpdatesRef.current = false;
              });
           
@@ -197,17 +200,8 @@ export function Board({ columns: initialColumns, initialLeads }: BoardProps) {
       });
     }
   }
-
-  const getLeadsByColumn = (columnId: string) => {
-    return leads.filter((lead) => lead.columnId === columnId);
-  };
-
-  async function handleCreateColumn() {
-    if (!newColumnName.trim()) return;
-    await createColumn(newColumnName);
-    setNewColumnName("");
-    setIsCreateColumnOpen(false);
-  }
+  
+  // ... rest of component ...
 
   return (
     <DndContext
@@ -217,39 +211,50 @@ export function Board({ columns: initialColumns, initialLeads }: BoardProps) {
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
     >
-      <div className="flex gap-4 h-full overflow-x-auto p-4 items-start">
-        <SortableContext items={columnsId} strategy={horizontalListSortingStrategy}>
-          {columns.map((col) => (
-            <Column 
-                key={col.id} 
-                column={col} 
-                leads={getLeadsByColumn(col.id)} 
-            />
-          ))}
-        </SortableContext>
-        
-        <Dialog open={isCreateColumnOpen} onOpenChange={setIsCreateColumnOpen}>
-            <DialogTrigger asChild>
-                <Button variant="outline" className="h-[50px] min-w-[300px] border-dashed border-2 hover:border-solid hover:bg-slate-50 dark:hover:bg-slate-900">
-                    <PlusIcon className="mr-2 h-4 w-4" />
-                    Adicionar Coluna
-                </Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Nova Coluna</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="name">Nome da Coluna</Label>
-                        <Input id="name" value={newColumnName} onChange={(e) => setNewColumnName(e.target.value)} placeholder="Ex: Aguardando Resposta" />
+      <div className="flex flex-col h-full">
+          {lastError && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded relative mb-2 mx-4" role="alert">
+                  <strong className="font-bold">Erro! </strong>
+                  <span className="block sm:inline">{lastError}</span>
+                  <span className="absolute top-0 bottom-0 right-0 px-4 py-2" onClick={() => setLastError(null)}>
+                      <svg className="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/></svg>
+                  </span>
+              </div>
+          )}
+          <div className="flex gap-4 h-full overflow-x-auto p-4 items-start">
+            <SortableContext items={columnsId} strategy={horizontalListSortingStrategy}>
+              {columns.map((col) => (
+                <Column 
+                    key={col.id} 
+                    column={col} 
+                    leads={getLeadsByColumn(col.id)} 
+                />
+              ))}
+            </SortableContext>
+            
+            <Dialog open={isCreateColumnOpen} onOpenChange={setIsCreateColumnOpen}>
+                <DialogTrigger asChild>
+                    <Button variant="outline" className="h-[50px] min-w-[300px] border-dashed border-2 hover:border-solid hover:bg-slate-50 dark:hover:bg-slate-900">
+                        <PlusIcon className="mr-2 h-4 w-4" />
+                        Adicionar Coluna
+                    </Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Nova Coluna</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="name">Nome da Coluna</Label>
+                            <Input id="name" value={newColumnName} onChange={(e) => setNewColumnName(e.target.value)} placeholder="Ex: Aguardando Resposta" />
+                        </div>
                     </div>
-                </div>
-                <DialogFooter>
-                    <Button onClick={handleCreateColumn}>Criar Coluna</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                    <DialogFooter>
+                        <Button onClick={handleCreateColumn}>Criar Coluna</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+          </div>
       </div>
 
       {createPortal(

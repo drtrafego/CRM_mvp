@@ -4,16 +4,24 @@ import { organizations, leads, columns, leadHistory } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import OpenAI from "openai";
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI client only if API Key is present
+const openai = process.env.OPENAI_API_KEY 
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) 
+  : null;
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ orgSlug: string }> }
 ) {
   try {
+    if (!openai) {
+      console.error("OPENAI_API_KEY is missing");
+      return NextResponse.json(
+        { error: "Server configuration error: AI service unavailable" },
+        { status: 503 }
+      );
+    }
+
     const { orgSlug } = await params;
     
     // 1. Validate Organization Slug

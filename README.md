@@ -1,36 +1,113 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CRM SaaS B2B (Kanban Edition)
 
-## Getting Started
+A modern, multi-tenant B2B CRM for lead management with a focus on a **Kanban Board** visualization. Built to provide a "Clean SaaS" experience with optimistic UI updates, customizable workflows, and AI integration.
 
-First, run the development server:
+![CRM Preview](https://placehold.co/800x400?text=CRM+Preview)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 🚀 Features
+
+### Core CRM
+- **Multi-tenant Architecture:** Organization-based data isolation.
+- **Kanban Board:** Drag-and-drop columns and cards with optimistic UI updates using `@dnd-kit`.
+- **List View:** Tabular data display with filtering and sorting.
+- **Lead Management:** Create, Edit, Move, and Delete leads.
+- **Lead History:** Automatic tracking of all lead movements and updates.
+- **Statistics:** Real-time stats for Total Leads, New Leads, Pipeline Value, and Won Revenue.
+
+### Integrations & AI
+- **Smart Webhooks:** Endpoint to receive leads from any form (WordPress, Typeform, etc).
+- **AI Normalization:** OpenAI (GPT-4o-mini) processes incoming webhook data to map unstructured fields (e.g., "Zap", "Nome Completo") to the CRM schema automatically.
+- **Google Authentication:** Secure login via NextAuth v5.
+
+### Organization
+- **Custom Columns:** Create, rename, and reorder Kanban columns.
+- **Member Management:** Invite team members to your organization.
+
+## 🛠️ Tech Stack
+
+- **Framework:** Next.js 16 (App Router, Turbopack)
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS v4, Shadcn/UI
+- **Database:** Neon (Serverless PostgreSQL)
+- **ORM:** Drizzle ORM
+- **Authentication:** NextAuth.js v5
+- **AI:** OpenAI SDK
+- **Icons:** Lucide React
+
+## 📦 Project Structure
+
+```
+src/
+├── app/
+│   ├── (authenticated)/    # Protected routes (Requires Login)
+│   │   ├── admin/          # Super Admin Dashboard
+│   │   └── org/[slug]/     # Organization-specific routes (Kanban, Settings)
+│   ├── api/                # Backend Routes (Webhooks, Auth)
+│   └── login/              # Public Login Page
+├── components/
+│   ├── features/           # Business Logic (Kanban, CRM View)
+│   ├── layout/             # Sidebar, Header, UserMenu
+│   └── ui/                 # Reusable Shadcn Components
+├── lib/                    # Utilities & DB Connection
+├── server/
+│   ├── actions/            # Server Actions (Mutations)
+│   └── db/                 # Database Schema (Drizzle)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## ⚡ Getting Started
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 1. Clone & Install
+```bash
+git clone https://github.com/drtrafego/CRM_mvp.git
+cd CRM_mvp
+npm install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2. Environment Variables
+Create a `.env.local` file in the root directory:
 
-## Learn More
+```env
+# Database (Neon)
+DATABASE_URL="postgresql://user:pass@host/db?sslmode=require"
 
-To learn more about Next.js, take a look at the following resources:
+# Auth (NextAuth / Google)
+AUTH_SECRET="your-generated-secret"
+AUTH_GOOGLE_ID="your-google-client-id"
+AUTH_GOOGLE_SECRET="your-google-client-secret"
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# AI (OpenAI)
+OPENAI_API_KEY="sk-..."
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Config
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+ADMIN_EMAILS="admin@example.com"
+```
 
-## Deploy on Vercel
+### 3. Run Development Server
+```bash
+npm run dev
+```
+Access `http://localhost:3000`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🔌 Webhook Integration
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Each organization has a unique webhook URL to receive leads automatically.
+
+**URL Pattern:**
+`POST https://[YOUR-DOMAIN]/api/webhooks/[ORG-SLUG]`
+
+**Example Payload (JSON):**
+The AI will automatically map these fields to `name`, `email`, `whatsapp`, `company`, `notes`.
+```json
+{
+  "Nome Completo": "John Doe",
+  "Email Corporativo": "john@company.com",
+  "WhatsApp": "+5511999999999",
+  "Empresa": "Acme Corp",
+  "Mensagem": "I need a quote."
+}
+```
+
+## 📜 License
+
+This project is proprietary software.

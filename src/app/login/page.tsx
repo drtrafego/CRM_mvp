@@ -1,15 +1,11 @@
 import { LoginForm } from "@/components/auth/login-form";
-import { stackServerApp } from "@/stack";
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 
 export default async function LoginPage() {
-  const stackEnabled = !!process.env.NEXT_PUBLIC_STACK_PROJECT_ID && !!process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY;
-  if (!stackEnabled) {
-    redirect("/crm");
-  }
-  const user = await stackServerApp.getUser();
-  if (user) {
-    redirect("/crm");
+  const session = await auth();
+  if (session?.user) {
+    redirect("/admin/dashboard"); // Or wherever the logged-in user should go
   }
   return <LoginForm />;
 }

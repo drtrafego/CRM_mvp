@@ -5,8 +5,8 @@ import { eq } from "drizzle-orm";
 import OpenAI from "openai";
 
 // Initialize OpenAI client only if API Key is present
-const openai = process.env.OPENAI_API_KEY 
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) 
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
 export async function POST(
@@ -23,7 +23,7 @@ export async function POST(
     }
 
     const { orgSlug } = await params;
-    
+
     // 1. Validate Organization Slug
     const org = await db.query.organizations.findFirst({
       where: eq(organizations.slug, orgSlug),
@@ -45,16 +45,26 @@ export async function POST(
     } else if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
       rawData = Object.fromEntries(formData.entries());
+    } else if (contentType.includes("application/x-www-form-urlencoded")) {
+      // Handle URL-encoded form data (Elementor, WordPress, HTML forms)
+      const text = await req.text();
+      rawData = Object.fromEntries(new URLSearchParams(text));
     } else {
-      // Fallback for x-www-form-urlencoded or others
-       try {
-          rawData = await req.json();
-       } catch (e) {
-           return NextResponse.json(
-            { error: "Unsupported content type or invalid body" },
+      // Fallback: try to parse as JSON, then as form data
+      const text = await req.text();
+      try {
+        rawData = JSON.parse(text);
+      } catch {
+        try {
+          rawData = Object.fromEntries(new URLSearchParams(text));
+        } catch {
+          console.error("Failed to parse webhook body:", text.substring(0, 500));
+          return NextResponse.json(
+            { error: "Unsupported content type or invalid body format" },
             { status: 400 }
           );
-       }
+        }
+      }
     }
 
     // 3. Normalize Data with OpenAI (Zero-ETL)
@@ -82,7 +92,7 @@ export async function POST(
     // If no column exists, we might need to create one or handle error. 
     // For now, we proceed only if a column is found or leave columnId null/undefined if schema permits.
     // Ideally, organization creation should ensure default columns exist.
-    
+
     // 5. Save Lead to Database
     const newLead = await db.insert(leads).values({
       name: normalizedData.name || "Sem Nome",
@@ -97,12 +107,12 @@ export async function POST(
 
     // 6. Log History
     if (newLead[0]) {
-       await db.insert(leadHistory).values({
-          leadId: newLead[0].id,
-          action: 'create',
-          details: `Lead criado via Integração (Webhook) em ${defaultColumn?.title || 'Coluna Inicial'}`,
-          toColumn: defaultColumn?.id,
-       });
+      await db.insert(leadHistory).values({
+        leadId: newLead[0].id,
+        action: 'create',
+        details: `Lead criado via Integração (Webhook) em ${defaultColumn?.title || 'Coluna Inicial'}`,
+        toColumn: defaultColumn?.id,
+      });
     }
 
     return NextResponse.json(

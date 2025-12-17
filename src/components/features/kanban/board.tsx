@@ -50,37 +50,37 @@ export function Board({ columns: initialColumns, initialLeads, onLeadsChange, or
   const router = useRouter();
   const [columns, setColumns] = useState<ColumnType[]>(initialColumns);
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
-  
+
   const [activeColumn, setActiveColumn] = useState<ColumnType | null>(null);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
 
   // Add Column State
   const [isCreateColumnOpen, setIsCreateColumnOpen] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
-  
+
   // Ref to track local updates and prevent race conditions from server revalidation
   const ignoreExternalUpdatesRef = useRef(false);
 
   useEffect(() => {
-      if (ignoreExternalUpdatesRef.current) {
-          const timer = setTimeout(() => {
-              ignoreExternalUpdatesRef.current = false;
-          }, 2000); // Ignore server updates for 2s after a local move
-          return () => clearTimeout(timer);
-      }
-      setColumns(initialColumns);
+    if (ignoreExternalUpdatesRef.current) {
+      const timer = setTimeout(() => {
+        ignoreExternalUpdatesRef.current = false;
+      }, 2000); // Ignore server updates for 2s after a local move
+      return () => clearTimeout(timer);
+    }
+    setColumns(initialColumns);
   }, [initialColumns]);
 
   useEffect(() => {
-      if (ignoreExternalUpdatesRef.current) return;
-      setLeads(initialLeads);
+    if (ignoreExternalUpdatesRef.current) return;
+    setLeads(initialLeads);
   }, [initialLeads]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, SENSORS_CONFIG),
     useSensor(TouchSensor),
     useSensor(KeyboardSensor, {
-        coordinateGetter: sortableKeyboardCoordinates,
+      coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 
@@ -115,10 +115,10 @@ export function Board({ columns: initialColumns, initialLeads, onLeadsChange, or
       setLeads((leads) => {
         const activeIndex = leads.findIndex((l) => l.id === activeId);
         const overIndex = leads.findIndex((l) => l.id === overId);
-        
+
         if (leads[activeIndex].columnId !== leads[overIndex].columnId) {
           const newLeads = [...leads];
-          newLeads[activeIndex].columnId = leads[overIndex].columnId; 
+          newLeads[activeIndex].columnId = leads[overIndex].columnId;
           return arrayMove(newLeads, activeIndex, overIndex - 1);
         }
         return leads;
@@ -130,7 +130,7 @@ export function Board({ columns: initialColumns, initialLeads, onLeadsChange, or
       setLeads((leads) => {
         const activeIndex = leads.findIndex((l) => l.id === activeId);
         const activeLead = leads[activeIndex];
-        
+
         if (activeLead.columnId === overId) return leads;
 
         const newLeads = [...leads];
@@ -160,26 +160,26 @@ export function Board({ columns: initialColumns, initialLeads, onLeadsChange, or
           const oldIndex = columns.findIndex((col) => col.id === activeId);
           const newIndex = columns.findIndex((col) => col.id === overId);
           const newOrder = arrayMove(columns, oldIndex, newIndex);
-          
+
           // Set ignore flag BEFORE calling server action to prevent race condition
           ignoreExternalUpdatesRef.current = true;
           console.log("[Board] Sending new column order:", newOrder.map(c => c.id));
-          
+
           // Call server action and handle potential errors
           updateColumnOrder(newOrder.map(c => c.id), orgId)
             .then((response) => {
-                console.log("[Board] Column order saved successfully");
-                if (response.columns) {
-                    // Authoritatively update local state with server-verified order
-                    setColumns(response.columns);
-                    // Force router refresh to clear Next.js client router cache
-                    router.refresh();
-                }
+              console.log("[Board] Column order saved successfully");
+              if (response.columns) {
+                // Authoritatively update local state with server-verified order
+                setColumns(response.columns);
+                // Force router refresh to clear Next.js client router cache
+                router.refresh();
+              }
             })
             .catch(err => {
-                console.error("Failed to update column order:", err);
-                setLastError(`Erro ao salvar ordem das colunas: ${err.message}`);
-                ignoreExternalUpdatesRef.current = false;
+              console.error("Failed to update column order:", err);
+              setLastError(`Erro ao salvar ordem das colunas: ${err.message}`);
+              ignoreExternalUpdatesRef.current = false;
             });
 
           return newOrder;
@@ -193,33 +193,33 @@ export function Board({ columns: initialColumns, initialLeads, onLeadsChange, or
       setLeads((leads) => {
         const activeIndex = leads.findIndex((l) => l.id === activeId);
         const overIndex = leads.findIndex((l) => l.id === overId);
-        
+
         const newOrderedLeads = arrayMove(leads, activeIndex, overIndex);
         const movedLead = newOrderedLeads[overIndex];
-        
+
         const columnLeads = newOrderedLeads.filter(l => l.columnId === movedLead.columnId);
         const newPosition = columnLeads.findIndex(l => l.id === movedLead.id);
-        
+
         // Set ignore flag BEFORE calling server action
         ignoreExternalUpdatesRef.current = true;
-        
+
         // Notify parent about optimistic change
         if (onLeadsChange) {
-            onLeadsChange(newOrderedLeads);
+          onLeadsChange(newOrderedLeads);
         }
-        
+
         updateLeadStatus(movedLead.id, movedLead.columnId!, newPosition, orgId)
-             .catch(err => {
-                console.error("Failed to update lead status:", err);
-                setLastError(`Erro ao salvar status do lead: ${err.message}`);
-                ignoreExternalUpdatesRef.current = false;
-             });
-          
+          .catch(err => {
+            console.error("Failed to update lead status:", err);
+            setLastError(`Erro ao salvar status do lead: ${err.message}`);
+            ignoreExternalUpdatesRef.current = false;
+          });
+
         return newOrderedLeads;
       });
     }
   }
-  
+
   const getLeadsByColumn = (columnId: string) => {
     return leads.filter((lead) => lead.columnId === columnId);
   };
@@ -240,63 +240,63 @@ export function Board({ columns: initialColumns, initialLeads, onLeadsChange, or
       onDragEnd={onDragEnd}
     >
       <div className="flex flex-col h-full">
-          {lastError && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded relative mb-2 mx-4" role="alert">
-                  <strong className="font-bold">Erro! </strong>
-                  <span className="block sm:inline">{lastError}</span>
-                  <span className="absolute top-0 bottom-0 right-0 px-4 py-2" onClick={() => setLastError(null)}>
-                      <svg className="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/></svg>
-                  </span>
-              </div>
-          )}
-          <div className="flex gap-4 h-full overflow-x-auto p-4 items-start">
-            <SortableContext items={columnsId} strategy={horizontalListSortingStrategy}>
-              {columns.map((col) => (
-                <Column 
-                    key={col.id} 
-                    column={col} 
-                    leads={getLeadsByColumn(col.id)} 
-                    orgId={orgId}
-                />
-              ))}
-            </SortableContext>
-            
-            <Dialog open={isCreateColumnOpen} onOpenChange={setIsCreateColumnOpen}>
-                <DialogTrigger asChild>
-                    <Button variant="outline" className="h-[50px] min-w-[300px] border-dashed border-2 hover:border-solid hover:bg-slate-50 dark:hover:bg-slate-900">
-                        <PlusIcon className="mr-2 h-4 w-4" />
-                        Adicionar Coluna
-                    </Button>
-                </DialogTrigger>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Nova Coluna</DialogTitle>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="name">Nome da Coluna</Label>
-                            <Input id="name" value={newColumnName} onChange={(e) => setNewColumnName(e.target.value)} placeholder="Ex: Aguardando Resposta" />
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button onClick={handleCreateColumn}>Criar Coluna</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+        {lastError && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded relative mb-2 mx-4" role="alert">
+            <strong className="font-bold">Erro! </strong>
+            <span className="block sm:inline">{lastError}</span>
+            <span className="absolute top-0 bottom-0 right-0 px-4 py-2" onClick={() => setLastError(null)}>
+              <svg className="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z" /></svg>
+            </span>
           </div>
+        )}
+        <div className="flex gap-4 h-full overflow-x-auto p-4 items-start">
+          <SortableContext items={columnsId} strategy={horizontalListSortingStrategy}>
+            {columns.map((col) => (
+              <Column
+                key={col.id}
+                column={col}
+                leads={getLeadsByColumn(col.id)}
+                orgId={orgId}
+              />
+            ))}
+          </SortableContext>
+
+          <Dialog open={isCreateColumnOpen} onOpenChange={setIsCreateColumnOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="h-[50px] min-w-[300px] border-dashed border-2 hover:border-solid hover:bg-slate-50 dark:hover:bg-slate-900">
+                <PlusIcon className="mr-2 h-4 w-4" />
+                Adicionar Coluna
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Nova Coluna</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Nome da Coluna</Label>
+                  <Input id="name" value={newColumnName} onChange={(e) => setNewColumnName(e.target.value)} placeholder="Ex: Aguardando Resposta" />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={handleCreateColumn}>Criar Coluna</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
-      {createPortal(
+      {typeof document !== 'undefined' && createPortal(
         <DragOverlay>
           {activeColumn && (
-             <div className="opacity-80 rotate-2 cursor-grabbing">
-                <Column column={activeColumn} leads={getLeadsByColumn(activeColumn.id)} orgId={orgId} />
-             </div>
+            <div className="opacity-80 rotate-2 cursor-grabbing">
+              <Column column={activeColumn} leads={getLeadsByColumn(activeColumn.id)} orgId={orgId} />
+            </div>
           )}
           {activeLead && (
-             <div className="opacity-80 rotate-2 cursor-grabbing">
-                 <LeadCard lead={activeLead} />
-             </div>
+            <div className="opacity-80 rotate-2 cursor-grabbing">
+              <LeadCard lead={activeLead} />
+            </div>
           )}
         </DragOverlay>,
         document.body

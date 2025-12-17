@@ -129,23 +129,17 @@ export async function POST(
 
     console.log("[Webhook] Lead created successfully:", newLead[0]?.id);
 
-    // Return plain text 'success' - some form handlers prefer this
-    return new NextResponse("success", {
-      status: 200,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "text/plain"
-      }
-    });
+    // Return success with proper CORS headers
+    return NextResponse.json(
+      { success: true, message: "Lead created successfully" },
+      { status: 200, headers: corsHeaders }
+    );
 
   } catch (error) {
     console.error("[Webhook] Error:", error);
-    return new NextResponse("error", {
-      status: 500,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "text/plain"
-      }
-    });
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500, headers: corsHeaders }
+    );
   }
 }

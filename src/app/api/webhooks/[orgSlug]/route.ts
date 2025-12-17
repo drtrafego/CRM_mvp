@@ -9,6 +9,18 @@ const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
+// CORS headers for cross-origin requests (Elementor, WordPress, etc.)
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+// Handle preflight requests (OPTIONS)
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ orgSlug: string }> }
@@ -18,7 +30,7 @@ export async function POST(
       console.error("OPENAI_API_KEY is missing");
       return NextResponse.json(
         { error: "Server configuration error: AI service unavailable" },
-        { status: 503 }
+        { status: 503, headers: corsHeaders }
       );
     }
 
@@ -32,7 +44,7 @@ export async function POST(
     if (!org) {
       return NextResponse.json(
         { error: "Organization not found" },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       );
     }
 
@@ -61,7 +73,7 @@ export async function POST(
           console.error("Failed to parse webhook body:", text.substring(0, 500));
           return NextResponse.json(
             { error: "Unsupported content type or invalid body format" },
-            { status: 400 }
+            { status: 400, headers: corsHeaders }
           );
         }
       }
@@ -117,14 +129,14 @@ export async function POST(
 
     return NextResponse.json(
       { success: true, lead: newLead[0] },
-      { status: 200 }
+      { status: 200, headers: corsHeaders }
     );
 
   } catch (error) {
     console.error("Webhook Error:", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

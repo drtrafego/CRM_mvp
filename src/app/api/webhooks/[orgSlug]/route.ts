@@ -16,30 +16,55 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: corsHeaders });
 }
 
-// Simple field normalization without AI (fast)
+// Smart field normalization that supports multiple formats including Elementor
 function normalizeLeadData(rawData: Record<string, any>) {
-  const nameFields = ['name', 'nome', 'nome_completo', 'full_name', 'fullname', 'Nome', 'Nome Completo', 'form_fields[name]', 'form_fields[nome]'];
-  const emailFields = ['email', 'e-mail', 'Email', 'E-mail', 'email_corporativo', 'form_fields[email]'];
-  const phoneFields = ['phone', 'telefone', 'whatsapp', 'celular', 'tel', 'Phone', 'Telefone', 'WhatsApp', 'Celular', 'form_fields[phone]', 'form_fields[telefone]', 'form_fields[whatsapp]'];
-  const companyFields = ['company', 'empresa', 'Company', 'Empresa', 'company_name', 'form_fields[company]', 'form_fields[empresa]'];
-  const messageFields = ['message', 'mensagem', 'notes', 'observacoes', 'Message', 'Mensagem', 'form_fields[message]', 'form_fields[mensagem]'];
+  // First, check if data is in Elementor format: fields[fieldname][value]
+  const elementorData: Record<string, string> = {};
+  for (const key of Object.keys(rawData)) {
+    // Match pattern: fields[NAME][value] or fields[NAME][raw_value]
+    const match = key.match(/^fields\[(\w+)\]\[(value|raw_value)\]$/);
+    if (match) {
+      const fieldName = match[1].toLowerCase();
+      // Prefer raw_value if exists, otherwise use value
+      if (!elementorData[fieldName] || match[2] === 'raw_value') {
+        elementorData[fieldName] = String(rawData[key]);
+      }
+    }
+  }
+
+  console.log("[Webhook] Elementor parsed:", JSON.stringify(elementorData));
+
+  // Merge: use Elementor data if available, otherwise use raw data
+  const dataToNormalize = Object.keys(elementorData).length > 0 ? elementorData : rawData;
+
+  // Field name mappings (now simpler since Elementor data is pre-processed)
+  const nameFields = ['name', 'nome', 'nome_completo', 'full_name', 'fullname'];
+  const emailFields = ['email', 'e-mail', 'email_corporativo'];
+  const phoneFields = ['phone', 'telefone', 'whatsapp', 'celular', 'tel', 'fone'];
+  const companyFields = ['company', 'empresa', 'company_name'];
+  const messageFields = ['message', 'mensagem', 'notes', 'observacoes', 'observacao'];
 
   const findValue = (fields: string[]) => {
     for (const field of fields) {
-      if (rawData[field] !== undefined && rawData[field] !== null && rawData[field] !== '') {
-        return String(rawData[field]);
+      const value = dataToNormalize[field] || dataToNormalize[field.toLowerCase()];
+      if (value !== undefined && value !== null && value !== '') {
+        return String(value);
       }
     }
     return null;
   };
 
-  return {
+  const result = {
     name: findValue(nameFields),
     email: findValue(emailFields),
     phone: findValue(phoneFields),
     company: findValue(companyFields),
     message: findValue(messageFields),
   };
+
+  console.log("[Webhook] Normalized result:", JSON.stringify(result));
+
+  return result;
 }
 
 export async function POST(

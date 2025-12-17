@@ -73,6 +73,13 @@ export async function POST(
     let rawData: Record<string, any> = {};
     const contentType = req.headers.get("content-type") || "";
 
+    // DEBUG: Log all request details
+    console.log("[Webhook] === REQUEST DEBUG ===");
+    console.log("[Webhook] Content-Type:", contentType);
+    console.log("[Webhook] URL:", req.url);
+    console.log("[Webhook] Method:", req.method);
+    console.log("[Webhook] All Query Params:", Object.fromEntries(req.nextUrl.searchParams.entries()));
+
     try {
       if (contentType.includes("application/json")) {
         rawData = await req.json();
@@ -90,6 +97,7 @@ export async function POST(
           rawData = Object.fromEntries(new URLSearchParams(text));
         }
       }
+      console.log("[Webhook] Raw Data Parsed:", JSON.stringify(rawData));
     } catch (parseError) {
       console.error("[Webhook] Parse error:", parseError);
       // Still try to redirect even on parse error

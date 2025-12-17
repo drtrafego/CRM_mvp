@@ -2,23 +2,45 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { organizations, leads, columns, leadHistory } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
-import OpenAI from "openai";
-
-// Initialize OpenAI client only if API Key is present
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
 
 // CORS headers for cross-origin requests (Elementor, WordPress, etc.)
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept, Origin",
+  "Access-Control-Allow-Credentials": "true",
 };
 
 // Handle preflight requests (OPTIONS)
 export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
+  return new NextResponse(null, { status: 200, headers: corsHeaders });
+}
+
+// Simple field normalization without AI (faster, no timeout risk)
+function normalizeLeadData(rawData: Record<string, any>) {
+  // Common field name mappings (Portuguese/English variations)
+  const nameFields = ['name', 'nome', 'nome_completo', 'full_name', 'fullname', 'Nome', 'Nome Completo'];
+  const emailFields = ['email', 'e-mail', 'Email', 'E-mail', 'email_corporativo', 'Email Corporativo'];
+  const phoneFields = ['phone', 'telefone', 'whatsapp', 'celular', 'tel', 'Phone', 'Telefone', 'WhatsApp', 'Celular'];
+  const companyFields = ['company', 'empresa', 'Company', 'Empresa', 'company_name'];
+  const messageFields = ['message', 'mensagem', 'notes', 'observacoes', 'Message', 'Mensagem', 'Observações'];
+
+  const findValue = (fields: string[]) => {
+    for (const field of fields) {
+      if (rawData[field] !== undefined && rawData[field] !== null && rawData[field] !== '') {
+        return String(rawData[field]);
+      }
+    }
+    return null;
+  };
+
+  return {
+    name: findValue(nameFields),
+    email: findValue(emailFields),
+    phone: findValue(phoneFields),
+    company: findValue(companyFields),
+    message: findValue(messageFields),
+  };
 }
 
 export async function POST(
@@ -26,14 +48,6 @@ export async function POST(
   { params }: { params: Promise<{ orgSlug: string }> }
 ) {
   try {
-    if (!openai) {
-      console.error("OPENAI_API_KEY is missing");
-      return NextResponse.json(
-        { error: "Server configuration error: AI service unavailable" },
-        { status: 503, headers: corsHeaders }
-      );
-    }
-
     const { orgSlug } = await params;
 
     // 1. Validate Organization Slug
@@ -42,79 +56,65 @@ export async function POST(
     });
 
     if (!org) {
+      console.error(`[Webhook] Organization not found: ${orgSlug}`);
       return NextResponse.json(
-        { error: "Organization not found" },
+        { success: false, error: "Organization not found" },
         { status: 404, headers: corsHeaders }
       );
     }
 
     // 2. Get Request Body (JSON or FormData)
-    let rawData: any;
+    let rawData: Record<string, any> = {};
     const contentType = req.headers.get("content-type") || "";
 
-    if (contentType.includes("application/json")) {
-      rawData = await req.json();
-    } else if (contentType.includes("multipart/form-data")) {
-      const formData = await req.formData();
-      rawData = Object.fromEntries(formData.entries());
-    } else if (contentType.includes("application/x-www-form-urlencoded")) {
-      // Handle URL-encoded form data (Elementor, WordPress, HTML forms)
-      const text = await req.text();
-      rawData = Object.fromEntries(new URLSearchParams(text));
-    } else {
-      // Fallback: try to parse as JSON, then as form data
-      const text = await req.text();
-      try {
-        rawData = JSON.parse(text);
-      } catch {
+    try {
+      if (contentType.includes("application/json")) {
+        rawData = await req.json();
+      } else if (contentType.includes("multipart/form-data")) {
+        const formData = await req.formData();
+        rawData = Object.fromEntries(formData.entries());
+      } else if (contentType.includes("application/x-www-form-urlencoded")) {
+        const text = await req.text();
+        rawData = Object.fromEntries(new URLSearchParams(text));
+      } else {
+        // Fallback: try to parse as JSON, then as form data
+        const text = await req.text();
         try {
-          rawData = Object.fromEntries(new URLSearchParams(text));
+          rawData = JSON.parse(text);
         } catch {
-          console.error("Failed to parse webhook body:", text.substring(0, 500));
-          return NextResponse.json(
-            { error: "Unsupported content type or invalid body format" },
-            { status: 400, headers: corsHeaders }
-          );
+          rawData = Object.fromEntries(new URLSearchParams(text));
         }
       }
+    } catch (parseError) {
+      console.error("[Webhook] Failed to parse body:", parseError);
+      return NextResponse.json(
+        { success: false, error: "Invalid request body" },
+        { status: 400, headers: corsHeaders }
+      );
     }
 
-    // 3. Normalize Data with OpenAI (Zero-ETL)
-    const systemPrompt = `Você é um normalizador de dados para CRM. Analise o JSON de entrada. Extraia e mapeie para estritamente estas chaves: { name: string | null, email: string | null, phone: string | null, message: string | null, company: string | null }. Retorne APENAS o JSON limpo.`;
+    console.log("[Webhook] Received data:", JSON.stringify(rawData));
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: JSON.stringify(rawData) },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0,
-    });
+    // 3. Normalize Data (fast, no AI)
+    const normalizedData = normalizeLeadData(rawData);
+    console.log("[Webhook] Normalized data:", JSON.stringify(normalizedData));
 
-    const normalizedData = JSON.parse(completion.choices[0].message.content || "{}");
-
-    // 4. Find Default Column ("New") for the Organization
-    // Assuming the first column by order is the default "New" column
+    // 4. Find Default Column for the Organization
     const defaultColumn = await db.query.columns.findFirst({
       where: eq(columns.organizationId, org.id),
       orderBy: (columns, { asc }) => [asc(columns.order)],
     });
 
-    // If no column exists, we might need to create one or handle error. 
-    // For now, we proceed only if a column is found or leave columnId null/undefined if schema permits.
-    // Ideally, organization creation should ensure default columns exist.
-
     // 5. Save Lead to Database
     const newLead = await db.insert(leads).values({
       name: normalizedData.name || "Sem Nome",
       email: normalizedData.email,
-      whatsapp: normalizedData.phone, // Mapping phone to whatsapp field as per schema usually
+      whatsapp: normalizedData.phone,
       company: normalizedData.company,
       notes: normalizedData.message,
       organizationId: org.id,
-      status: "New", // Default status text
-      columnId: defaultColumn?.id, // Link to the first column if exists
+      status: "New",
+      columnId: defaultColumn?.id,
     }).returning();
 
     // 6. Log History
@@ -122,20 +122,23 @@ export async function POST(
       await db.insert(leadHistory).values({
         leadId: newLead[0].id,
         action: 'create',
-        details: `Lead criado via Integração (Webhook) em ${defaultColumn?.title || 'Coluna Inicial'}`,
+        details: `Lead criado via Webhook em ${defaultColumn?.title || 'Coluna Inicial'}`,
         toColumn: defaultColumn?.id,
       });
     }
 
+    console.log("[Webhook] Lead created successfully:", newLead[0]?.id);
+
+    // Return success with proper CORS headers
     return NextResponse.json(
-      { success: true, lead: newLead[0] },
+      { success: true, message: "Lead created successfully" },
       { status: 200, headers: corsHeaders }
     );
 
   } catch (error) {
-    console.error("Webhook Error:", error);
+    console.error("[Webhook] Error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { success: false, error: "Internal server error" },
       { status: 500, headers: corsHeaders }
     );
   }

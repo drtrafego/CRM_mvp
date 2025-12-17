@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { organizations, leads, columns, leadHistory } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
-// CORS headers for cross-origin requests (Elementor, WordPress, etc.)
+// CORS headers for cross-origin requests
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -16,14 +16,13 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: corsHeaders });
 }
 
-// Simple field normalization without AI (faster, no timeout risk)
+// Simple field normalization without AI (fast)
 function normalizeLeadData(rawData: Record<string, any>) {
-  // Common field name mappings (Portuguese/English variations)
-  const nameFields = ['name', 'nome', 'nome_completo', 'full_name', 'fullname', 'Nome', 'Nome Completo'];
-  const emailFields = ['email', 'e-mail', 'Email', 'E-mail', 'email_corporativo', 'Email Corporativo'];
-  const phoneFields = ['phone', 'telefone', 'whatsapp', 'celular', 'tel', 'Phone', 'Telefone', 'WhatsApp', 'Celular'];
-  const companyFields = ['company', 'empresa', 'Company', 'Empresa', 'company_name'];
-  const messageFields = ['message', 'mensagem', 'notes', 'observacoes', 'Message', 'Mensagem', 'Observações'];
+  const nameFields = ['name', 'nome', 'nome_completo', 'full_name', 'fullname', 'Nome', 'Nome Completo', 'form_fields[name]', 'form_fields[nome]'];
+  const emailFields = ['email', 'e-mail', 'Email', 'E-mail', 'email_corporativo', 'form_fields[email]'];
+  const phoneFields = ['phone', 'telefone', 'whatsapp', 'celular', 'tel', 'Phone', 'Telefone', 'WhatsApp', 'Celular', 'form_fields[phone]', 'form_fields[telefone]', 'form_fields[whatsapp]'];
+  const companyFields = ['company', 'empresa', 'Company', 'Empresa', 'company_name', 'form_fields[company]', 'form_fields[empresa]'];
+  const messageFields = ['message', 'mensagem', 'notes', 'observacoes', 'Message', 'Mensagem', 'form_fields[message]', 'form_fields[mensagem]'];
 
   const findValue = (fields: string[]) => {
     for (const field of fields) {
@@ -47,23 +46,30 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ orgSlug: string }> }
 ) {
-  try {
-    const { orgSlug } = await params;
+  const { orgSlug } = await params;
 
-    // 1. Validate Organization Slug
+  // Get redirect URL from query parameter (e.g., ?redirect=https://wa.me/5511999999999)
+  const redirectUrl = req.nextUrl.searchParams.get('redirect');
+
+  try {
+    // 1. Validate Organization
     const org = await db.query.organizations.findFirst({
       where: eq(organizations.slug, orgSlug),
     });
 
     if (!org) {
       console.error(`[Webhook] Organization not found: ${orgSlug}`);
+      // Even if org not found, redirect if URL provided
+      if (redirectUrl) {
+        return NextResponse.redirect(redirectUrl, { status: 302, headers: corsHeaders });
+      }
       return NextResponse.json(
         { success: false, error: "Organization not found" },
         { status: 404, headers: corsHeaders }
       );
     }
 
-    // 2. Get Request Body (JSON or FormData)
+    // 2. Parse Request Body
     let rawData: Record<string, any> = {};
     const contentType = req.headers.get("content-type") || "";
 
@@ -77,7 +83,6 @@ export async function POST(
         const text = await req.text();
         rawData = Object.fromEntries(new URLSearchParams(text));
       } else {
-        // Fallback: try to parse as JSON, then as form data
         const text = await req.text();
         try {
           rawData = JSON.parse(text);
@@ -86,26 +91,27 @@ export async function POST(
         }
       }
     } catch (parseError) {
-      console.error("[Webhook] Failed to parse body:", parseError);
+      console.error("[Webhook] Parse error:", parseError);
+      // Still try to redirect even on parse error
+      if (redirectUrl) {
+        return NextResponse.redirect(redirectUrl, { status: 302, headers: corsHeaders });
+      }
       return NextResponse.json(
         { success: false, error: "Invalid request body" },
         { status: 400, headers: corsHeaders }
       );
     }
 
-    console.log("[Webhook] Received data:", JSON.stringify(rawData));
+    console.log("[Webhook] Received:", JSON.stringify(rawData));
 
-    // 3. Normalize Data (fast, no AI)
+    // 3. Normalize and Save Lead
     const normalizedData = normalizeLeadData(rawData);
-    console.log("[Webhook] Normalized data:", JSON.stringify(normalizedData));
 
-    // 4. Find Default Column for the Organization
     const defaultColumn = await db.query.columns.findFirst({
       where: eq(columns.organizationId, org.id),
       orderBy: (columns, { asc }) => [asc(columns.order)],
     });
 
-    // 5. Save Lead to Database
     const newLead = await db.insert(leads).values({
       name: normalizedData.name || "Sem Nome",
       email: normalizedData.email,
@@ -117,7 +123,6 @@ export async function POST(
       columnId: defaultColumn?.id,
     }).returning();
 
-    // 6. Log History
     if (newLead[0]) {
       await db.insert(leadHistory).values({
         leadId: newLead[0].id,
@@ -127,19 +132,105 @@ export async function POST(
       });
     }
 
-    console.log("[Webhook] Lead created successfully:", newLead[0]?.id);
+    console.log("[Webhook] Lead saved:", newLead[0]?.id);
 
-    // Return success with proper CORS headers
+    // 4. REDIRECT if URL provided, otherwise return JSON
+    if (redirectUrl) {
+      console.log("[Webhook] Redirecting to:", redirectUrl);
+      return NextResponse.redirect(redirectUrl, {
+        status: 302,
+        headers: corsHeaders
+      });
+    }
+
+    // Fallback: return JSON success
     return NextResponse.json(
-      { success: true, message: "Lead created successfully" },
+      { success: true, message: "Lead created successfully", leadId: newLead[0]?.id },
       { status: 200, headers: corsHeaders }
     );
 
   } catch (error) {
     console.error("[Webhook] Error:", error);
+
+    // Even on error, try to redirect if URL provided
+    if (redirectUrl) {
+      return NextResponse.redirect(redirectUrl, { status: 302, headers: corsHeaders });
+    }
+
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500, headers: corsHeaders }
     );
+  }
+}
+
+// Also support GET for simple form submissions
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ orgSlug: string }> }
+) {
+  const { orgSlug } = await params;
+  const redirectUrl = req.nextUrl.searchParams.get('redirect');
+
+  try {
+    const org = await db.query.organizations.findFirst({
+      where: eq(organizations.slug, orgSlug),
+    });
+
+    if (!org) {
+      if (redirectUrl) {
+        return NextResponse.redirect(redirectUrl, { status: 302, headers: corsHeaders });
+      }
+      return NextResponse.json({ error: "Organization not found" }, { status: 404, headers: corsHeaders });
+    }
+
+    // Get all query params except 'redirect' as lead data
+    const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
+    delete searchParams.redirect;
+
+    const normalizedData = normalizeLeadData(searchParams);
+
+    const defaultColumn = await db.query.columns.findFirst({
+      where: eq(columns.organizationId, org.id),
+      orderBy: (columns, { asc }) => [asc(columns.order)],
+    });
+
+    const newLead = await db.insert(leads).values({
+      name: normalizedData.name || "Sem Nome",
+      email: normalizedData.email,
+      whatsapp: normalizedData.phone,
+      company: normalizedData.company,
+      notes: normalizedData.message,
+      organizationId: org.id,
+      status: "New",
+      columnId: defaultColumn?.id,
+    }).returning();
+
+    if (newLead[0]) {
+      await db.insert(leadHistory).values({
+        leadId: newLead[0].id,
+        action: 'create',
+        details: `Lead criado via Webhook (GET) em ${defaultColumn?.title || 'Coluna Inicial'}`,
+        toColumn: defaultColumn?.id,
+      });
+    }
+
+    console.log("[Webhook GET] Lead saved:", newLead[0]?.id);
+
+    if (redirectUrl) {
+      return NextResponse.redirect(redirectUrl, { status: 302, headers: corsHeaders });
+    }
+
+    return NextResponse.json(
+      { success: true, leadId: newLead[0]?.id },
+      { status: 200, headers: corsHeaders }
+    );
+
+  } catch (error) {
+    console.error("[Webhook GET] Error:", error);
+    if (redirectUrl) {
+      return NextResponse.redirect(redirectUrl, { status: 302, headers: corsHeaders });
+    }
+    return NextResponse.json({ error: "Internal server error" }, { status: 500, headers: corsHeaders });
   }
 }

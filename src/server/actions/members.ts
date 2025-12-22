@@ -7,78 +7,78 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 
 export async function addMember(email: string, orgId: string, role: 'admin' | 'viewer' = 'viewer') {
-  const session = await auth();
-  if (!session?.user?.email) {
-      throw new Error("Unauthorized");
-  }
+    const session = await auth();
+    if (!session?.user?.email) {
+        throw new Error("Unauthorized");
+    }
 
-  // 1. Check if requester is admin/owner of the org
-  const requester = await db.query.members.findFirst({
-      where: and(
-          eq(members.organizationId, orgId),
-          eq(members.userId, session.user.id!) 
-      )
-  });
+    // 1. Check if requester is admin/owner of the org
+    const requester = await db.query.members.findFirst({
+        where: and(
+            eq(members.organizationId, orgId),
+            eq(members.userId, session.user.id!)
+        )
+    });
 
-  // Also allow Super Admins (from env) to add members
-  const adminEmails = process.env.ADMIN_EMAILS?.split(",") || [];
-  const isSuperAdmin = adminEmails.includes(session.user.email);
+    // Also allow Super Admins (from env) to add members
+    const adminEmails = process.env.ADMIN_EMAILS?.split(",") || [];
+    const isSuperAdmin = adminEmails.includes(session.user.email);
 
-  if (!requester && !isSuperAdmin) {
-      throw new Error("Permission denied");
-  }
+    if (!requester && !isSuperAdmin) {
+        throw new Error("Permission denied");
+    }
 
-  // 2. Find the user by email
-  let targetUser = await db.query.users.findFirst({
-      where: eq(users.email, email)
-  });
+    // 2. Find the user by email
+    let targetUser = await db.query.users.findFirst({
+        where: eq(users.email, email)
+    });
 
-  if (!targetUser) {
-      // Create invitation if user doesn't exist
-      const existingInvite = await db.query.invitations.findFirst({
-          where: and(
-              eq(invitations.email, email),
-              eq(invitations.organizationId, orgId),
-              eq(invitations.status, 'pending')
-          )
-      });
+    if (!targetUser) {
+        // Create invitation if user doesn't exist
+        const existingInvite = await db.query.invitations.findFirst({
+            where: and(
+                eq(invitations.email, email),
+                eq(invitations.organizationId, orgId),
+                eq(invitations.status, 'pending')
+            )
+        });
 
-      if (existingInvite) {
-          throw new Error("Já existe um convite pendente para este email.");
-      }
+        if (existingInvite) {
+            throw new Error("Já existe um convite pendente para este email.");
+        }
 
-      await db.insert(invitations).values({
-          email,
-          organizationId: orgId,
-          role,
-          status: 'pending'
-      });
-      
-      revalidatePath(`/org/${orgId}/settings`);
-      return { status: "invited" };
-  }
+        await db.insert(invitations).values({
+            email,
+            organizationId: orgId,
+            role,
+            status: 'pending'
+        });
 
-  // 3. Check if already member
-  const existingMember = await db.query.members.findFirst({
-      where: and(
-          eq(members.organizationId, orgId),
-          eq(members.userId, targetUser.id)
-      )
-  });
+        revalidatePath(`/org/${orgId}/settings`);
+        return { status: "invited" };
+    }
 
-  if (existingMember) {
-      throw new Error("Usuário já é membro da organização.");
-  }
+    // 3. Check if already member
+    const existingMember = await db.query.members.findFirst({
+        where: and(
+            eq(members.organizationId, orgId),
+            eq(members.userId, targetUser.id)
+        )
+    });
 
-  // 4. Add member
-  await db.insert(members).values({
-      userId: targetUser.id,
-      organizationId: orgId,
-      role: role
-  });
+    if (existingMember) {
+        throw new Error("Usuário já é membro da organização.");
+    }
 
-  revalidatePath(`/org/${orgId}/settings`);
-  return { status: "added" };
+    // 4. Add member
+    await db.insert(members).values({
+        userId: targetUser.id,
+        organizationId: orgId,
+        role: role
+    });
+
+    revalidatePath(`/org/${orgId}/settings`);
+    return { status: "added" };
 }
 
 export async function removeMember(memberId: string, orgId: string) {
@@ -102,7 +102,7 @@ export async function getMembers(orgId: string) {
         .from(members)
         .innerJoin(users, eq(members.userId, users.id))
         .where(eq(members.organizationId, orgId));
-        
+
     // Fetch pending invitations
     const pendingInvites = await db
         .select({
@@ -119,4 +119,52 @@ export async function getMembers(orgId: string) {
         .where(and(eq(invitations.organizationId, orgId), eq(invitations.status, 'pending')));
 
     return [...orgMembers, ...pendingInvites];
+}
+
+export async function updateMemberRole(memberId: string, orgId: string, newRole: 'admin' | 'viewer' | 'owner') {
+    const session = await auth();
+    if (!session?.user?.id) {
+        throw new Error("Unauthorized");
+    }
+
+    // 1. Check requester permissions (must be owner or admin of the org)
+    const requester = await db.query.members.findFirst({
+        where: and(
+            eq(members.organizationId, orgId),
+            eq(members.userId, session.user.id)
+        )
+    });
+
+    const adminEmails = process.env.ADMIN_EMAILS?.split(",") || [];
+    const isSuperAdmin = adminEmails.includes(session.user?.email || '');
+
+    if ((!requester || (requester.role !== 'owner' && requester.role !== 'admin')) && !isSuperAdmin) {
+        throw new Error("Permission denied");
+    }
+
+    // 2. Prevent removing the last owner
+    if (newRole !== 'owner') {
+        const targetMember = await db.query.members.findFirst({
+            where: eq(members.id, memberId)
+        });
+
+        if (targetMember?.role === 'owner') {
+            const ownersCount = await db
+                .select({ count: sql<number>`count(*)` })
+                .from(members)
+                .where(and(eq(members.organizationId, orgId), eq(members.role, 'owner')));
+
+            if (Number(ownersCount[0].count) <= 1) {
+                throw new Error("Cannot change the role of the last owner");
+            }
+        }
+    }
+
+    // 3. Update Member Role
+    await db.update(members)
+        .set({ role: newRole })
+        .where(eq(members.id, memberId));
+
+    revalidatePath(`/org/${orgId}/settings`);
+    return { status: "updated" };
 }

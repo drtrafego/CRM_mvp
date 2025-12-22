@@ -23,42 +23,44 @@ export const dynamic = 'force-dynamic';
 export default async function AdminDashboard() {
   const session = await auth();
   const userEmail = session?.user?.email;
-  
+
   const adminEmails = process.env.ADMIN_EMAILS?.split(",") || [];
-  
-  // if (!userEmail || !adminEmails.includes(userEmail)) { ... } (Check commented out for dev/testing if needed, but keeping logic)
-  
+
+  if (!userEmail || !adminEmails.includes(userEmail)) {
+    return redirect("/");
+  }
+
   const allOrgs = await db.query.organizations.findMany({
-      orderBy: [desc(organizations.createdAt)]
+    orderBy: [desc(organizations.createdAt)]
   });
 
   const orgsWithStats = await Promise.all(allOrgs.map(async (org) => {
-      const orgLeads = await db.select({
-          createdAt: leads.createdAt,
-          firstContactAt: leads.firstContactAt
-      })
+    const orgLeads = await db.select({
+      createdAt: leads.createdAt,
+      firstContactAt: leads.firstContactAt
+    })
       .from(leads)
       .where(eq(leads.organizationId, org.id));
 
-      const totalLeads = orgLeads.length;
-      
-      // Calculate Avg Response Time
-      // Filter leads that have firstContactAt
-      const respondedLeads = orgLeads.filter(l => l.firstContactAt);
-      let avgResponseTime = 0;
-      
-      if (respondedLeads.length > 0) {
-          const totalTimeMs = respondedLeads.reduce((acc, lead) => {
-              return acc + (lead.firstContactAt!.getTime() - lead.createdAt.getTime());
-          }, 0);
-          avgResponseTime = totalTimeMs / respondedLeads.length;
-      }
+    const totalLeads = orgLeads.length;
 
-      return {
-          ...org,
-          totalLeads,
-          avgResponseTime
-      };
+    // Calculate Avg Response Time
+    // Filter leads that have firstContactAt
+    const respondedLeads = orgLeads.filter(l => l.firstContactAt);
+    let avgResponseTime = 0;
+
+    if (respondedLeads.length > 0) {
+      const totalTimeMs = respondedLeads.reduce((acc, lead) => {
+        return acc + (lead.firstContactAt!.getTime() - lead.createdAt.getTime());
+      }, 0);
+      avgResponseTime = totalTimeMs / respondedLeads.length;
+    }
+
+    return {
+      ...org,
+      totalLeads,
+      avgResponseTime
+    };
   }));
 
   return (
@@ -67,7 +69,7 @@ export default async function AdminDashboard() {
         <h1 className="text-3xl font-bold">Painel Super Admin</h1>
         <CreateOrgDialog />
       </div>
-      
+
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -86,9 +88,9 @@ export default async function AdminDashboard() {
                 <TableCell>{org.slug}</TableCell>
                 <TableCell className="text-center">{org.totalLeads}</TableCell>
                 <TableCell className="text-center">
-                    {org.avgResponseTime > 0 
-                        ? formatDistance(0, org.avgResponseTime, { includeSeconds: true, locale: ptBR }) 
-                        : "-"}
+                  {org.avgResponseTime > 0
+                    ? formatDistance(0, org.avgResponseTime, { includeSeconds: true, locale: ptBR })
+                    : "-"}
                 </TableCell>
                 <TableCell className="text-right">
                   <Link href={`/org/${org.slug}/kanban`}>

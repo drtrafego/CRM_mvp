@@ -25,7 +25,7 @@ import {
 
 interface Member {
   id: string;
-  role: "owner" | "admin" | "viewer";
+  role: "owner" | "admin" | "editor" | "viewer";
   userId: string;
   name: string | null;
   email: string | null;
@@ -35,7 +35,7 @@ interface Member {
 
 export function MembersList({ members, orgId }: { members: Member[], orgId: string }) {
   const [newEmail, setNewEmail] = useState("");
-  const [newRole, setNewRole] = useState<"admin" | "viewer">("viewer");
+  const [newRole, setNewRole] = useState<"admin" | "editor" | "viewer">("viewer");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -60,7 +60,7 @@ export function MembersList({ members, orgId }: { members: Member[], orgId: stri
     router.refresh();
   }
 
-  async function handleRoleChange(memberId: string, newRole: "admin" | "viewer" | "owner") {
+  async function handleRoleChange(memberId: string, newRole: "admin" | "editor" | "viewer" | "owner") {
     try {
       await updateMemberRole(memberId, orgId, newRole);
       router.refresh();
@@ -95,6 +95,7 @@ export function MembersList({ members, orgId }: { members: Member[], orgId: stri
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="viewer">Visualizador</SelectItem>
+                <SelectItem value="editor">Editor</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
@@ -125,7 +126,7 @@ export function MembersList({ members, orgId }: { members: Member[], orgId: stri
               <div className="flex items-center gap-3">
                 <Select
                   value={member.role}
-                  onValueChange={(v: "admin" | "viewer" | "owner") => handleRoleChange(member.id, v)}
+                  onValueChange={(v: "admin" | "editor" | "viewer" | "owner") => handleRoleChange(member.id, v)}
                   disabled={member.role === 'owner'} // Prevent changing owner role directly here for safety/simplicity
                 >
                   <SelectTrigger className="w-[130px] h-8 text-xs">
@@ -133,6 +134,7 @@ export function MembersList({ members, orgId }: { members: Member[], orgId: stri
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="viewer">Visualizador</SelectItem>
+                    <SelectItem value="editor">Editor</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="owner" disabled>Dono</SelectItem>
                   </SelectContent>

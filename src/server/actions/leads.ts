@@ -1,10 +1,31 @@
 'use server'
 
 import { db } from "@/lib/db";
-import { leads, columns, organizations, leadHistory } from "@/server/db/schema";
+import { leads, columns, organizations, leadHistory, members } from "@/server/db/schema";
 import { eq, asc, desc, and, ne, lt, gt, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
+
+async function checkPermissions(orgId: string) {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error("Unauthorized");
+
+    const member = await db.query.members.findFirst({
+        where: and(
+            eq(members.organizationId, orgId),
+            eq(members.userId, session.user.id)
+        )
+    });
+
+    if (!member) throw new Error("Not a member");
+
+    // Viewers cannot modify data
+    if (member.role === 'viewer') {
+        throw new Error("Permission denied: Viewers cannot modify data");
+    }
+
+    return member;
+}
 
 // Helper to log history
 async function logHistory(
@@ -64,6 +85,7 @@ export async function getColumns(orgId: string) {
 }
 
 export async function deleteLead(id: string, orgId: string) {
+    await checkPermissions(orgId);
     await db.delete(leads).where(and(eq(leads.id, id), eq(leads.organizationId, orgId)));
     revalidatePath(`/org/${orgId}/kanban`); // This path needs to be dynamic or handled by caller context
 }
@@ -76,6 +98,7 @@ export async function getLeads(orgId: string) {
 }
 
 export async function updateLeadStatus(id: string, newColumnId: string, newPosition: number, orgId: string) {
+    await checkPermissions(orgId);
     console.log(`[updateLeadStatus] Org: ${orgId} | Lead: ${id} -> Col: ${newColumnId} (Pos: ${newPosition})`);
 
     try {
@@ -137,6 +160,7 @@ export async function createLead(formData: FormData, orgId: string) {
     const valueStr = formData.get("value") as string;
     const value = valueStr ? valueStr : null;
 
+    await checkPermissions(orgId);
     console.log(`[createLead] Creating lead for Org: ${orgId}`);
 
     // Get the first column to add the lead to
@@ -168,6 +192,7 @@ export async function createLead(formData: FormData, orgId: string) {
 }
 
 export async function createColumn(title: string, orgId: string) {
+    await checkPermissions(orgId);
     console.log(`[createColumn] Org: ${orgId} | Title: ${title}`);
     const existingColumns = await getColumns(orgId);
 
@@ -181,6 +206,7 @@ export async function createColumn(title: string, orgId: string) {
 }
 
 export async function updateColumn(id: string, title: string, orgId: string) {
+    await checkPermissions(orgId);
     console.log(`[updateColumn] Org: ${orgId} | Col: ${id} -> Title: ${title}`);
     await db.update(columns)
         .set({ title })
@@ -189,6 +215,7 @@ export async function updateColumn(id: string, title: string, orgId: string) {
 }
 
 export async function updateColumnOrder(orderedIds: string[], orgId: string) {
+    await checkPermissions(orgId);
     console.log(`[updateColumnOrder] Org: ${orgId} | New Order:`, orderedIds);
 
     try {
@@ -221,6 +248,7 @@ export async function updateColumnOrder(orderedIds: string[], orgId: string) {
 }
 
 export async function deleteColumn(id: string, orgId: string) {
+    await checkPermissions(orgId);
 
     // Get the column being deleted to know its order
     const columnToDelete = await db.query.columns.findFirst({
@@ -280,6 +308,7 @@ export async function deleteColumn(id: string, orgId: string) {
 }
 
 export async function updateLeadContent(id: string, data: Partial<typeof leads.$inferInsert>, orgId: string) {
+    await checkPermissions(orgId);
     // Whitelist allowed fields to prevent accidental overwrites of critical data
     // like columnId, position, organizationId, etc.
     // Removed 'status' from whitelist to prevent any accidental status changes during edit

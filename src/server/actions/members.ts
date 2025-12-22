@@ -6,7 +6,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 
-export async function addMember(email: string, orgId: string, role: 'admin' | 'viewer' = 'viewer') {
+export async function addMember(email: string, orgId: string, role: 'admin' | 'editor' | 'viewer' = 'viewer') {
     const session = await auth();
     if (!session?.user?.email) {
         throw new Error("Unauthorized");
@@ -121,7 +121,7 @@ export async function getMembers(orgId: string) {
     return [...orgMembers, ...pendingInvites];
 }
 
-export async function updateMemberRole(memberId: string, orgId: string, newRole: 'admin' | 'viewer' | 'owner') {
+export async function updateMemberRole(memberId: string, orgId: string, newRole: 'admin' | 'editor' | 'viewer' | 'owner') {
     const session = await auth();
     if (!session?.user?.id) {
         throw new Error("Unauthorized");

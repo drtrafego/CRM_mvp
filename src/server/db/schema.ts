@@ -72,7 +72,7 @@ export const members = pgTable("members", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   organizationId: text("organization_id").notNull(), // Removed FK strict constraint for flexibility
-  role: text("role").$type<'owner' | 'admin' | 'viewer'>().notNull(),
+  role: text("role").$type<'owner' | 'admin' | 'editor' | 'viewer'>().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -80,7 +80,7 @@ export const invitations = pgTable("invitations", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: text("email").notNull(),
   organizationId: text("organization_id").notNull(),
-  role: text("role").$type<'admin' | 'viewer'>().default('viewer').notNull(),
+  role: text("role").$type<'admin' | 'editor' | 'viewer'>().default('viewer').notNull(),
   status: text("status").$type<'pending' | 'accepted'>().default('pending').notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
